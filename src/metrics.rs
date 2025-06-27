@@ -21,6 +21,11 @@ pub struct AppMetrics {
     pub database_queries_total: CounterVec,
     pub database_query_errors_total: CounterVec,
 
+    // Cache metrics
+    pub cache_hits_total: CounterVec,
+    pub cache_misses_total: CounterVec,
+    pub cache_operations_duration_seconds: HistogramVec,
+
     // Application metrics
     pub users_created_total: Counter,
     pub users_updated_total: Counter,
@@ -39,7 +44,7 @@ impl AppMetrics {
         // HTTP metrics
         let http_requests_total = CounterVec::new(
             Opts::new("http_requests_total", "Total number of HTTP requests"),
-            &["method", "endpoint", "status_code"],
+            &["method", "endpoint", "status_code", "status_class"],
         )?;
 
         let http_request_duration_seconds = HistogramVec::new(
@@ -91,6 +96,26 @@ impl AppMetrics {
             &["query_type", "table"],
         )?;
 
+        // Cache metrics
+        let cache_hits_total = CounterVec::new(
+            Opts::new("cache_hits_total", "Total number of cache hits"),
+            &["cache_type", "operation"],
+        )?;
+
+        let cache_misses_total = CounterVec::new(
+            Opts::new("cache_misses_total", "Total number of cache misses"),
+            &["cache_type", "operation"],
+        )?;
+
+        let cache_operations_duration_seconds = HistogramVec::new(
+            HistogramOpts::new(
+                "cache_operations_duration_seconds",
+                "Cache operation duration in seconds",
+            )
+            .buckets(vec![0.0001, 0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5]),
+            &["cache_type", "operation"],
+        )?;
+
         // Application metrics
         let users_created_total = Counter::new(
             "users_created_total",
@@ -133,6 +158,9 @@ impl AppMetrics {
         registry.register(Box::new(database_query_duration_seconds.clone()))?;
         registry.register(Box::new(database_queries_total.clone()))?;
         registry.register(Box::new(database_query_errors_total.clone()))?;
+        registry.register(Box::new(cache_hits_total.clone()))?;
+        registry.register(Box::new(cache_misses_total.clone()))?;
+        registry.register(Box::new(cache_operations_duration_seconds.clone()))?;
         registry.register(Box::new(users_created_total.clone()))?;
         registry.register(Box::new(users_updated_total.clone()))?;
         registry.register(Box::new(users_deleted_total.clone()))?;
@@ -151,6 +179,9 @@ impl AppMetrics {
             database_query_duration_seconds,
             database_queries_total,
             database_query_errors_total,
+            cache_hits_total,
+            cache_misses_total,
+            cache_operations_duration_seconds,
             users_created_total,
             users_updated_total,
             users_deleted_total,
@@ -257,10 +288,32 @@ impl AppMetrics {
         self.memory_usage_bytes.set(memory_bytes);
         self.cpu_usage_percent.set(cpu_percent);
     }
+
+    /// Record cache hit
+    pub fn record_cache_hit(&self, cache_type: &str, operation: &str, duration: f64) {
+        self.cache_hits_total
+            .with_label_values(&[cache_type, operation])
+            .inc();
+
+        self.cache_operations_duration_seconds
+            .with_label_values(&[cache_type, operation])
+            .observe(duration);
+    }
+
+    /// Record cache miss
+    pub fn record_cache_miss(&self, cache_type: &str, operation: &str, duration: f64) {
+        self.cache_misses_total
+            .with_label_values(&[cache_type, operation])
+            .inc();
+
+        self.cache_operations_duration_seconds
+            .with_label_values(&[cache_type, operation])
+            .observe(duration);
+    }
 }
 
 impl Default for AppMetrics {
     fn default() -> Self {
-        Self::new().expect("Failed to create metrics")
+        Self::new().expect("Failed to create default AppMetrics")
     }
 }

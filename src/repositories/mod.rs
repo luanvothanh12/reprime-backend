@@ -1,6 +1,6 @@
 pub mod user;
 
-use sqlx::PgPool;
+use crate::database::InstrumentedDatabase;
 use std::sync::Arc;
 
 pub use user::UserRepository;
@@ -11,9 +11,10 @@ pub struct Repositories {
 }
 
 impl Repositories {
-    pub fn new(pool: Arc<PgPool>) -> Self {
+
+    pub fn new(instrumented_db: Arc<InstrumentedDatabase>) -> Self {
         Self {
-            user: UserRepository::new(pool),
+            user: UserRepository::new(instrumented_db),
         }
     }
 }

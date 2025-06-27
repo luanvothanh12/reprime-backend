@@ -37,19 +37,23 @@ pub struct TracedOnRequest;
 
 impl<B> tower_http::trace::OnRequest<B> for TracedOnRequest {
     fn on_request(&mut self, request: &Request<B>, span: &Span) {
-        // Get trace context if available
-        if let (Some(trace_id), Some(span_id)) = (
-            crate::telemetry::current_trace_id(),
-            crate::telemetry::current_span_id(),
-        ) {
-            span.record("trace_id", &trace_id);
-            span.record("span_id", &span_id);
-        }
+        // Extract or generate trace context
+        let (trace_id, span_id) = crate::telemetry::extract_or_generate_trace_id(request.headers());
 
-        tracing::info!(
+        span.record("trace_id", &trace_id);
+        span.record("span_id", &span_id);
+
+        let user_agent = request.headers()
+            .get("user-agent")
+            .and_then(|h| h.to_str().ok())
+            .unwrap_or("unknown");
+
+        crate::log_with_trace!(info,
             method = %request.method(),
             uri = %request.uri(),
-            "Request started"
+            endpoint = %request.uri().path(),
+            user_agent = %user_agent,
+            "HTTP request started"
         );
     }
 }
@@ -80,20 +84,23 @@ impl tower_http::trace::OnResponse<axum::body::Body> for TracedOnResponse {
         };
 
         match level {
-            Level::ERROR => tracing::error!(
+            Level::ERROR => crate::log_with_trace!(error,
                 status_code = status.as_u16(),
                 latency_ms = latency_ms,
-                "Request completed"
+                status_class = "5xx",
+                "HTTP request failed"
             ),
-            Level::WARN => tracing::warn!(
+            Level::WARN => crate::log_with_trace!(warn,
                 status_code = status.as_u16(),
                 latency_ms = latency_ms,
-                "Request completed"
+                status_class = "4xx",
+                "HTTP request client error"
             ),
-            _ => tracing::info!(
+            _ => crate::log_with_trace!(info,
                 status_code = status.as_u16(),
                 latency_ms = latency_ms,
-                "Request completed"
+                status_class = "2xx",
+                "HTTP request completed successfully"
             ),
         }
     }

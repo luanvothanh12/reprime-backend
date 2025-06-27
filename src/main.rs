@@ -1,16 +1,17 @@
 use anyhow::Result;
-use axum_prometheus::PrometheusMetricLayer;
 use reprime_backend::{
     config::Config,
-    handlers::Handlers,
-    middleware::{cors_layer, logging_layer},
+    handlers::{Handlers, metrics::metrics_handler},
+    middleware::{cors_layer, logging_layer, prometheus::prometheus_middleware},
     repositories::Repositories,
     routes::create_routes,
     services::Services,
     utils::create_database_pool,
+    metrics::AppMetrics,
+    database::InstrumentedDatabase,
 };
-use std::sync::Arc;
-use tokio::net::TcpListener;
+use std::{sync::Arc, time::Duration};
+use tokio::{net::TcpListener, time::interval};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -72,11 +73,14 @@ async fn main() -> Result<()> {
     // Create a database connection pool
     let pool = create_database_pool(&config).await?;
 
-    // Initialize Prometheus metrics layer
-    let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
+    // Initialize custom metrics
+    let metrics = AppMetrics::new().expect("Failed to create metrics");
+
+    // Create instrumented database
+    let instrumented_db = Arc::new(InstrumentedDatabase::new((*pool).clone(), Some(metrics.clone())));
 
     // Initialize layers
-    let repositories = Arc::new(Repositories::new(pool));
+    let repositories = Arc::new(Repositories::new(instrumented_db.clone()));
     let services = Arc::new(Services::new(repositories));
 
     let handlers = Handlers::new(services);
@@ -84,10 +88,24 @@ async fn main() -> Result<()> {
     // Create OpenAPI documentation
     let openapi = ApiDoc::openapi();
 
+    // Start background task for connection pool monitoring
+    let instrumented_db_clone = instrumented_db.clone();
+    tokio::spawn(async move {
+        let mut interval = interval(Duration::from_secs(10));
+        loop {
+            interval.tick().await;
+            instrumented_db_clone.get_pool_metrics();
+        }
+    });
+
+    let metrics_router = axum::Router::new()
+        .route("/metrics", axum::routing::get(metrics_handler))
+        .with_state(metrics.clone());
+
     let app = create_routes(handlers)
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", openapi))
-        .route("/metrics", axum::routing::get(|| async move { metric_handle.render() }))
-        .layer(prometheus_layer)
+        .merge(metrics_router)
+        .layer(axum::middleware::from_fn_with_state(metrics.clone(), prometheus_middleware))
         .layer(cors_layer())
         .layer(logging_layer());
 

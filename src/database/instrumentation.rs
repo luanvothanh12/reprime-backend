@@ -48,7 +48,7 @@ impl InstrumentedDatabase {
         
         span.record("duration_ms", duration_ms);
 
-        // Extract table name from query (simple heuristic)
+        // Extract table name from a query (simple heuristic)
         let table_name = extract_table_name(query);
         let query_type = extract_query_type(query);
         
@@ -238,6 +238,13 @@ impl InstrumentedDatabase {
 
         (active, idle as u32, size)
     }
+
+    /// Get the underlying pool for direct access (when instrumentation is not needed)
+    pub fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+
+
 }
 
 /// Extract table name from SQL query (simple heuristic)

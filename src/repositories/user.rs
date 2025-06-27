@@ -1,5 +1,6 @@
 use crate::errors::Result;
 use crate::models::{CreateUserRequest, PaginationParams, UpdateUserRequest, User};
+use crate::database::InstrumentedDatabase;
 use chrono::Utc;
 use sqlx::{PgPool, Row};
 use std::sync::Arc;
@@ -8,11 +9,15 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct UserRepository {
     pool: Arc<PgPool>,
+    instrumented_db: Option<Arc<InstrumentedDatabase>>,
 }
 
 impl UserRepository {
-    pub fn new(pool: Arc<PgPool>) -> Self {
-        Self { pool }
+    pub fn new(instrumented_db: Arc<InstrumentedDatabase>) -> Self {
+        Self {
+            pool: Arc::new(instrumented_db.pool().clone()),
+            instrumented_db: Some(instrumented_db),
+        }
     }
 
     pub async fn create(&self, request: CreateUserRequest) -> Result<User> {
