@@ -4,8 +4,8 @@ pub mod user;
 use crate::services::Services;
 use std::sync::Arc;
 
-pub use health::health_check;
-pub use user::UserHandlers;
+pub use health::{health_check, HealthResponse};
+pub use user::{UserHandlers, create_user, get_user, get_users, update_user, delete_user};
 
 #[derive(Clone)]
 pub struct Handlers {

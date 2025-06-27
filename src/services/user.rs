@@ -20,7 +20,7 @@ impl UserService {
         // Validate input
         self.validate_create_request(&request).await?;
 
-        // Check if user already exists
+        // Check if a user already exists
         if self
             .repositories
             .user

@@ -3,8 +3,8 @@ name = "reprime-backend"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/your-org/reprime-backend"
-description = "A modern Rust backend application with clean architecture"
+repository = "https://github.com/luanvothanh12/reprime-backend"
+description = "Reprime Backend"
 edition = "2021"
 authors = ["Thanh Luan Vo <paulluanvothanh@gmail.com>"]
 
@@ -18,8 +18,10 @@ serde_json = "1.0"
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "migrate"] }
 tokio = { version = "1.0", features = ["full"] }
 tower = { version = "0.5.2", features = ["timeout"] }
-tower-http = { version = "0.6.6", features = ["compression-full", "cors", "trace"] }
+tower-http = { version = "0.6.6", features = ["compression-full", "cors", "trace", "fs"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+utoipa = { version = "5.4.0", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 
