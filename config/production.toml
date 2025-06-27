@@ -1,0 +1,15 @@
+[server]
+host = "0.0.0.0"
+port = 8080
+
+[database]
+url = "postgresql://localhost/reprime_backend_prod"
+max_connections = 20
+min_connections = 5
+acquire_timeout = 30
+idle_timeout = 600
+max_lifetime = 1800
+
+[logging]
+level = "info"
+format = "json"
