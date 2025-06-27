@@ -1,14 +1,13 @@
 use anyhow::Result;
 use axum_prometheus::PrometheusMetricLayer;
 use reprime_backend::{
-    client::HttpClientService,
     config::Config,
     handlers::Handlers,
     middleware::{cors_layer, logging_layer},
     repositories::Repositories,
     routes::create_routes,
     services::Services,
-    utils::{create_database_pool, init_tracing_with_loki},
+    utils::create_database_pool,
 };
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -64,8 +63,8 @@ async fn main() -> Result<()> {
         Config::default()
     });
 
-    // Initialize tracing with Loki
-    init_tracing_with_loki(&config).await?;
+    // Initialize comprehensive telemetry with OpenTelemetry, Loki, and structured logging
+    reprime_backend::telemetry::init_telemetry_with_loki(&config).await?;
 
     tracing::info!("Starting reprime-backend server...");
     tracing::info!("Configuration loaded: {:?}", config);
@@ -80,10 +79,7 @@ async fn main() -> Result<()> {
     let repositories = Arc::new(Repositories::new(pool));
     let services = Arc::new(Services::new(repositories));
 
-    // Initialize HTTP client service
-    let http_client_service = Arc::new(HttpClientService::new().expect("Failed to create HTTP client service"));
-
-    let handlers = Handlers::new(services, http_client_service);
+    let handlers = Handlers::new(services);
 
     // Create OpenAPI documentation
     let openapi = ApiDoc::openapi();
@@ -97,11 +93,28 @@ async fn main() -> Result<()> {
 
     // Start server
     let listener = TcpListener::bind(&config.server_address()).await?;
-    tracing::info!("Server listening on {}", config.server_address());
-    tracing::info!("Swagger UI available at http://{}/swagger-ui/", config.server_address());
-    tracing::info!("Metrics available at http://{}/metrics", config.server_address());
 
-    axum::serve(listener, app).await?;
+    tracing::info!(
+        address = %config.server_address(),
+        swagger_ui = %format!("http://{}/swagger-ui/", config.server_address()),
+        metrics = %format!("http://{}/metrics", config.server_address()),
+        "Server started successfully"
+    );
 
+    // Set up graceful shutdown
+    let shutdown_signal = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to install CTRL+C signal handler");
+        tracing::info!("Shutdown signal received, starting graceful shutdown...");
+        reprime_backend::telemetry::shutdown_telemetry();
+    };
+
+    // Run server with graceful shutdown
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal)
+        .await?;
+
+    tracing::info!("Server shutdown complete");
     Ok(())
 }

@@ -12,4 +12,12 @@ max_lifetime = 1800
 
 [logging]
 level = "debug"
-format = "pretty"
+format = "json"
+
+[telemetry]
+otlp_endpoint = "http://localhost:4317"
+loki_endpoint = "http://localhost:3100"
+service_name = "reprime-backend-dev"
+enable_tracing = true
+enable_metrics = true
+enable_logging = true

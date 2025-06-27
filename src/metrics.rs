@@ -12,19 +12,21 @@ pub struct AppMetrics {
     pub http_requests_total: CounterVec,
     pub http_request_duration_seconds: HistogramVec,
     pub http_requests_in_flight: GaugeVec,
-    
+    pub http_error_rate: CounterVec,
+
     // Database metrics
     pub database_connections_active: Gauge,
     pub database_connections_idle: Gauge,
     pub database_query_duration_seconds: HistogramVec,
     pub database_queries_total: CounterVec,
-    
+    pub database_query_errors_total: CounterVec,
+
     // Application metrics
     pub users_created_total: Counter,
     pub users_updated_total: Counter,
     pub users_deleted_total: Counter,
     pub users_retrieved_total: Counter,
-    
+
     // System metrics
     pub memory_usage_bytes: Gauge,
     pub cpu_usage_percent: Gauge,
@@ -54,6 +56,11 @@ impl AppMetrics {
             &["method", "endpoint"],
         )?;
 
+        let http_error_rate = CounterVec::new(
+            Opts::new("http_error_rate", "HTTP error rate counter"),
+            &["method", "endpoint", "status_code"],
+        )?;
+
         // Database metrics
         let database_connections_active = Gauge::new(
             "database_connections_active",
@@ -77,6 +84,11 @@ impl AppMetrics {
         let database_queries_total = CounterVec::new(
             Opts::new("database_queries_total", "Total number of database queries"),
             &["query_type", "table", "status"],
+        )?;
+
+        let database_query_errors_total = CounterVec::new(
+            Opts::new("database_query_errors_total", "Total number of database query errors"),
+            &["query_type", "table"],
         )?;
 
         // Application metrics
@@ -115,10 +127,12 @@ impl AppMetrics {
         registry.register(Box::new(http_requests_total.clone()))?;
         registry.register(Box::new(http_request_duration_seconds.clone()))?;
         registry.register(Box::new(http_requests_in_flight.clone()))?;
+        registry.register(Box::new(http_error_rate.clone()))?;
         registry.register(Box::new(database_connections_active.clone()))?;
         registry.register(Box::new(database_connections_idle.clone()))?;
         registry.register(Box::new(database_query_duration_seconds.clone()))?;
         registry.register(Box::new(database_queries_total.clone()))?;
+        registry.register(Box::new(database_query_errors_total.clone()))?;
         registry.register(Box::new(users_created_total.clone()))?;
         registry.register(Box::new(users_updated_total.clone()))?;
         registry.register(Box::new(users_deleted_total.clone()))?;
@@ -131,10 +145,12 @@ impl AppMetrics {
             http_requests_total,
             http_request_duration_seconds,
             http_requests_in_flight,
+            http_error_rate,
             database_connections_active,
             database_connections_idle,
             database_query_duration_seconds,
             database_queries_total,
+            database_query_errors_total,
             users_created_total,
             users_updated_total,
             users_deleted_total,
@@ -144,26 +160,73 @@ impl AppMetrics {
         })
     }
 
-    /// Record an HTTP request
+    /// Record an HTTP request with a trace correlation
     pub fn record_http_request(&self, method: &str, endpoint: &str, status_code: u16, duration: f64) {
+        let status_class = match status_code {
+            200..=299 => "2xx",
+            300..=399 => "3xx",
+            400..=499 => "4xx",
+            500..=599 => "5xx",
+            _ => "other",
+        };
+
         self.http_requests_total
-            .with_label_values(&[method, endpoint, &status_code.to_string()])
+            .with_label_values(&[method, endpoint, &status_code.to_string(), status_class])
             .inc();
-        
+
         self.http_request_duration_seconds
             .with_label_values(&[method, endpoint])
             .observe(duration);
+
+        // Record error metrics for 4xx/5xx responses
+        if status_code >= 400 {
+            self.http_error_rate
+                .with_label_values(&[method, endpoint, &status_code.to_string()])
+                .inc();
+        }
+
+        // Log metrics with trace correlation for debugging
+        if let Some(trace_id) = crate::telemetry::current_trace_id() {
+            tracing::debug!(
+                trace_id = %trace_id,
+                method = %method,
+                endpoint = %endpoint,
+                status_code = status_code,
+                status_class = %status_class,
+                duration_seconds = duration,
+                "HTTP request metrics recorded"
+            );
+        }
     }
 
-    /// Record database query
+    /// Record database query with trace correlation
     pub fn record_database_query(&self, query_type: &str, table: &str, status: &str, duration: f64) {
         self.database_queries_total
             .with_label_values(&[query_type, table, status])
             .inc();
-        
+
         self.database_query_duration_seconds
             .with_label_values(&[query_type, table])
             .observe(duration);
+
+        // Record errors separately
+        if status == "error" {
+            self.database_query_errors_total
+                .with_label_values(&[query_type, table])
+                .inc();
+        }
+
+        // Log database metrics with trace correlation
+        if let Some(trace_id) = crate::telemetry::current_trace_id() {
+            tracing::debug!(
+                trace_id = %trace_id,
+                query_type = %query_type,
+                table = %table,
+                status = %status,
+                duration_seconds = duration,
+                "Database query metrics recorded"
+            );
+        }
     }
 
     /// Update database connection metrics

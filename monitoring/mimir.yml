@@ -1,6 +1,9 @@
 # Mimir configuration for single-node deployment
 target: all
 
+# Disable multitenancy for single-tenant setup
+multitenancy_enabled: false
+
 server:
   http_listen_port: 9009
   grpc_listen_port: 9095

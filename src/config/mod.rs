@@ -7,6 +7,7 @@ pub struct Config {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
     pub logging: LoggingConfig,
+    pub telemetry: TelemetryConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -29,6 +30,16 @@ pub struct DatabaseConfig {
 pub struct LoggingConfig {
     pub level: String,
     pub format: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct TelemetryConfig {
+    pub otlp_endpoint: String,
+    pub loki_endpoint: String,
+    pub service_name: String,
+    pub enable_tracing: bool,
+    pub enable_metrics: bool,
+    pub enable_logging: bool,
 }
 
 impl Config {
@@ -76,6 +87,14 @@ impl Default for Config {
             logging: LoggingConfig {
                 level: "info".to_string(),
                 format: "json".to_string(),
+            },
+            telemetry: TelemetryConfig {
+                otlp_endpoint: "http://localhost:4317".to_string(),
+                loki_endpoint: "http://localhost:3100".to_string(),
+                service_name: "reprime-backend".to_string(),
+                enable_tracing: true,
+                enable_metrics: true,
+                enable_logging: true,
             },
         }
     }

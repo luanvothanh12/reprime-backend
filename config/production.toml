@@ -13,3 +13,11 @@ max_lifetime = 1800
 [logging]
 level = "info"
 format = "json"
+
+[telemetry]
+otlp_endpoint = "http://tempo:4317"
+loki_endpoint = "http://loki:3100"
+service_name = "reprime-backend"
+enable_tracing = true
+enable_metrics = true
+enable_logging = true

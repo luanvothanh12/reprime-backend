@@ -2,7 +2,6 @@ pub mod health;
 pub mod metrics;
 pub mod user;
 
-use crate::client::HttpClientService;
 use crate::services::Services;
 use std::sync::Arc;
 
@@ -16,7 +15,7 @@ pub struct Handlers {
 }
 
 impl Handlers {
-    pub fn new(services: Arc<Services>, http_client_service: Arc<HttpClientService>) -> Self {
+    pub fn new(services: Arc<Services>) -> Self {
         Self {
             user: UserHandlers::new(services.clone()),
         }

@@ -1,4 +1,21 @@
 services:
+  # Tempo for distributed tracing
+  tempo:
+    image: grafana/tempo:latest
+    container_name: reprime-tempo
+    ports:
+      - "3200:3200"   # Tempo HTTP
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    volumes:
+      - ./monitoring/tempo.yml:/etc/tempo/tempo.yml
+      - tempo_data:/var/tempo
+    command:
+      - '-config.file=/etc/tempo/tempo.yml'
+    restart: unless-stopped
+    networks:
+      - monitoring
+
   # Mimir for long-term metrics storage
   mimir:
     image: grafana/mimir:latest
@@ -85,6 +102,7 @@ services:
       - prometheus
       - loki
       - mimir
+      - tempo
 
   node-exporter:
     image: prom/node-exporter:latest
@@ -109,6 +127,7 @@ volumes:
   grafana_data:
   loki_data:
   mimir_data:
+  tempo_data:
 
 networks:
   monitoring:
