@@ -1,12 +1,14 @@
 use anyhow::Result;
+use axum_prometheus::PrometheusMetricLayer;
 use reprime_backend::{
+    client::HttpClientService,
     config::Config,
     handlers::Handlers,
     middleware::{cors_layer, logging_layer},
     repositories::Repositories,
     routes::create_routes,
     services::Services,
-    utils::{create_database_pool, init_tracing},
+    utils::{create_database_pool, init_tracing_with_loki},
 };
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -40,7 +42,7 @@ use utoipa_swagger_ui::SwaggerUi;
     ),
     tags(
         (name = "health", description = "Health check endpoints"),
-        (name = "users", description = "User management endpoints")
+        (name = "users", description = "User management endpoints"),
     ),
     info(
         title = "Reprime Backend API",
@@ -62,8 +64,8 @@ async fn main() -> Result<()> {
         Config::default()
     });
 
-    // Initialize tracing
-    init_tracing(&config);
+    // Initialize tracing with Loki
+    init_tracing_with_loki(&config).await?;
 
     tracing::info!("Starting reprime-backend server...");
     tracing::info!("Configuration loaded: {:?}", config);
@@ -71,16 +73,25 @@ async fn main() -> Result<()> {
     // Create a database connection pool
     let pool = create_database_pool(&config).await?;
 
+    // Initialize Prometheus metrics layer
+    let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
+
     // Initialize layers
     let repositories = Arc::new(Repositories::new(pool));
     let services = Arc::new(Services::new(repositories));
-    let handlers = Handlers::new(services);
+
+    // Initialize HTTP client service
+    let http_client_service = Arc::new(HttpClientService::new().expect("Failed to create HTTP client service"));
+
+    let handlers = Handlers::new(services, http_client_service);
 
     // Create OpenAPI documentation
     let openapi = ApiDoc::openapi();
 
     let app = create_routes(handlers)
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", openapi))
+        .route("/metrics", axum::routing::get(|| async move { metric_handle.render() }))
+        .layer(prometheus_layer)
         .layer(cors_layer())
         .layer(logging_layer());
 
@@ -88,6 +99,7 @@ async fn main() -> Result<()> {
     let listener = TcpListener::bind(&config.server_address()).await?;
     tracing::info!("Server listening on {}", config.server_address());
     tracing::info!("Swagger UI available at http://{}/swagger-ui/", config.server_address());
+    tracing::info!("Metrics available at http://{}/metrics", config.server_address());
 
     axum::serve(listener, app).await?;
 
