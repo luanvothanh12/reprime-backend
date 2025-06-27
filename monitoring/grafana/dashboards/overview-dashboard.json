@@ -14,7 +14,7 @@
       "keepTime": true,
       "tags": [],
       "targetBlank": true,
-      "title": "📊 Detailed Metrics",
+      "title": "Detailed Metrics",
       "tooltip": "View detailed metrics dashboard",
       "type": "link",
       "url": "/d/reprime-metrics"
@@ -91,11 +91,11 @@
             "uid": "prometheus"
           },
           "expr": "up{job=\"reprime-backend\"}",
-          "legendFormat": "🟢 Service Up",
+          "legendFormat": "Service Up",
           "refId": "A"
         }
       ],
-      "title": "🚀 Service Status",
+      "title": "Service Status",
       "type": "stat"
     },
     {
@@ -159,11 +159,11 @@
             "uid": "prometheus"
           },
           "expr": "rate(http_requests_total{job=\"reprime-backend\",status_class=~\"4xx|5xx\"}[5m]) / rate(http_requests_total{job=\"reprime-backend\"}[5m]) * 100",
-          "legendFormat": "🚨 Error Rate",
+          "legendFormat": "Error Rate",
           "refId": "A"
         }
       ],
-      "title": "🚨 Error Rate %",
+      "title": "Error Rate %",
       "type": "stat"
     },
     {
@@ -227,11 +227,11 @@
             "uid": "prometheus"
           },
           "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=\"reprime-backend\"}[5m]))",
-          "legendFormat": "⏱️ 95th Percentile",
+          "legendFormat": "95th Percentile",
           "refId": "A"
         }
       ],
-      "title": "⏱️ Response Time (95th)",
+      "title": "Response Time (95th)",
       "type": "stat"
     },
     {
@@ -295,11 +295,11 @@
             "uid": "prometheus"
           },
           "expr": "sum(rate(http_requests_total{job=\"reprime-backend\"}[5m]))",
-          "legendFormat": "🌐 Request Rate",
+          "legendFormat": "Request Rate",
           "refId": "A"
         }
       ],
-      "title": "🌐 Request Rate",
+      "title": "Request Rate",
       "type": "stat"
     }
   ],
