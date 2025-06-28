@@ -21,3 +21,18 @@ service_name = "reprime-backend"
 enable_tracing = true
 enable_metrics = true
 enable_logging = true
+
+[auth]
+jwt_secret = "CHANGE_THIS_IN_PRODUCTION_USE_STRONG_SECRET_KEY"
+jwt_expiration_hours = 24
+
+[auth.openfga]
+endpoint = "http://localhost:8080"
+store_id = "01JYTQW0GAD7KK4WDVWSCZ1ECJ"
+auth_model_id = "01JYTQW0J85WGR952C2M09JZAC"
+api_token = ""
+# Production-optimized cache settings
+cache_enabled = true
+cache_ttl_seconds = 300
+cache_max_entries = 100000
+request_timeout_seconds = 30

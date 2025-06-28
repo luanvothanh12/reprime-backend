@@ -12,9 +12,11 @@ authors = ["Thanh Luan Vo <paulluanvothanh@gmail.com>"]
 anyhow = "1.0"
 axum = "0.8.4"
 axum-prometheus = "0.8.0"
+bcrypt = "0.17.0"
 chrono = { version = "0.4", features = ["serde"] }
 config = "0.15.11"
 futures = "0.3.31"
+jsonwebtoken = "9.3.1"
 prometheus = "0.14.0"
 reqwest = { version = "0.12.20", features = ["json", "stream"] }
 serde = { version = "1.0", features = ["derive"] }

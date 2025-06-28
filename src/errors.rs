@@ -17,6 +17,7 @@ pub enum AppError {
     Forbidden,
     Internal(String),
     BadRequest(String),
+    Authentication(String),
 }
 
 impl fmt::Display for AppError {
@@ -29,6 +30,7 @@ impl fmt::Display for AppError {
             AppError::Forbidden => write!(f, "Forbidden"),
             AppError::Internal(msg) => write!(f, "Internal error: {}", msg),
             AppError::BadRequest(msg) => write!(f, "Bad request: {}", msg),
+            AppError::Authentication(msg) => write!(f, "Authentication error: {}", msg),
         }
     }
 }
@@ -51,6 +53,7 @@ impl IntoResponse for AppError {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
             }
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            AppError::Authentication(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
         };
 
         let body = Json(json!({

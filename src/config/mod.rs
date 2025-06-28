@@ -8,6 +8,7 @@ pub struct Config {
     pub database: DatabaseConfig,
     pub logging: LoggingConfig,
     pub telemetry: TelemetryConfig,
+    pub auth: AuthConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -40,6 +41,25 @@ pub struct TelemetryConfig {
     pub enable_tracing: bool,
     pub enable_metrics: bool,
     pub enable_logging: bool,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct AuthConfig {
+    pub jwt_secret: String,
+    pub jwt_expiration_hours: u64,
+    pub openfga: OpenFgaConfig,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct OpenFgaConfig {
+    pub endpoint: String,
+    pub store_id: String,
+    pub auth_model_id: Option<String>,
+    pub api_token: Option<String>,
+    pub cache_enabled: bool,
+    pub cache_ttl_seconds: u64,
+    pub cache_max_entries: usize,
+    pub request_timeout_seconds: u64,
 }
 
 impl Config {
@@ -95,6 +115,20 @@ impl Default for Config {
                 enable_tracing: true,
                 enable_metrics: true,
                 enable_logging: true,
+            },
+            auth: AuthConfig {
+                jwt_secret: "your-secret-key-change-in-production".to_string(),
+                jwt_expiration_hours: 24,
+                openfga: OpenFgaConfig {
+                    endpoint: "http://localhost:8080".to_string(),
+                    store_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
+                    auth_model_id: None,
+                    api_token: None,
+                    cache_enabled: true,
+                    cache_ttl_seconds: 300,
+                    cache_max_entries: 50000,
+                    request_timeout_seconds: 30,
+                },
             },
         }
     }

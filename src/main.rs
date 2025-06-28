@@ -1,5 +1,6 @@
 use anyhow::Result;
 use reprime_backend::{
+    auth::{jwt::JwtService, openfga::OpenFgaService},
     config::Config,
     handlers::{Handlers, metrics::metrics_handler},
     middleware::{cors_layer, logging_layer, prometheus::prometheus_middleware},
@@ -12,7 +13,10 @@ use reprime_backend::{
 };
 use std::{sync::Arc, time::Duration};
 use tokio::{net::TcpListener, time::interval};
-use utoipa::OpenApi;
+use utoipa::{
+    openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
+    Modify, OpenApi,
+};
 use utoipa_swagger_ui::SwaggerUi;
 
 
@@ -26,6 +30,11 @@ use utoipa_swagger_ui::SwaggerUi;
         reprime_backend::handlers::user::get_user,
         reprime_backend::handlers::user::update_user,
         reprime_backend::handlers::user::delete_user,
+        reprime_backend::auth::handlers::register,
+        reprime_backend::auth::handlers::login,
+        reprime_backend::auth::handlers::me,
+        reprime_backend::auth::handlers::refresh_token,
+        reprime_backend::auth::handlers::check_permission,
     ),
     components(
         schemas(
@@ -38,23 +47,51 @@ use utoipa_swagger_ui::SwaggerUi;
             reprime_backend::models::PaginationParams,
             reprime_backend::models::DeleteResponse,
             reprime_backend::handlers::HealthResponse,
+            reprime_backend::auth::models::LoginRequest,
+            reprime_backend::auth::models::LoginResponse,
+            reprime_backend::auth::models::RegisterRequest,
+            reprime_backend::auth::models::UserInfo,
+            reprime_backend::auth::models::PermissionCheck,
+            reprime_backend::models::ApiResponse<reprime_backend::auth::models::LoginResponse>,
+            reprime_backend::models::ApiResponse<reprime_backend::auth::models::UserInfo>,
+            reprime_backend::models::ApiResponse<bool>,
         )
     ),
     tags(
         (name = "health", description = "Health check endpoints"),
         (name = "users", description = "User management endpoints"),
+        (name = "authentication", description = "Authentication and authorization endpoints"),
     ),
     info(
         title = "Reprime Backend API",
         version = "0.1.0",
-        description = "A modern Rust backend API with OpenAPI documentation",
+        description = "A modern Rust backend API with OpenAPI documentation and ABAC authorization using OpenFGA",
         contact(
             name = "API Support",
             email = "support@reprime.com"
         )
-    )
+    ),
+    modifiers(&SecurityAddon)
 )]
 struct ApiDoc;
+
+struct SecurityAddon;
+
+impl Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        if let Some(components) = openapi.components.as_mut() {
+            components.add_security_scheme(
+                "bearer_auth",
+                SecurityScheme::Http(
+                    HttpBuilder::new()
+                        .scheme(HttpAuthScheme::Bearer)
+                        .bearer_format("JWT")
+                        .build(),
+                ),
+            )
+        }
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -79,11 +116,19 @@ async fn main() -> Result<()> {
     // Create instrumented database
     let instrumented_db = Arc::new(InstrumentedDatabase::new((*pool).clone(), Some(metrics.clone())));
 
+    // Initialize auth services
+    let jwt_service = Arc::new(JwtService::new(&config));
+    let openfga_service = Arc::new(OpenFgaService::new(&config).await?);
+
     // Initialize layers
     let repositories = Arc::new(Repositories::new(instrumented_db.clone()));
-    let services = Arc::new(Services::new(repositories));
+    let services = Arc::new(Services::new(
+        repositories,
+        jwt_service.clone(),
+        openfga_service.clone(),
+    ));
 
-    let handlers = Handlers::new(services);
+    let handlers = Handlers::new(services, jwt_service.clone(), openfga_service);
 
     // Create OpenAPI documentation
     let openapi = ApiDoc::openapi();
@@ -102,7 +147,7 @@ async fn main() -> Result<()> {
         .route("/metrics", axum::routing::get(metrics_handler))
         .with_state(metrics.clone());
 
-    let app = create_routes(handlers)
+    let app = create_routes(handlers, jwt_service)
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", openapi))
         .merge(metrics_router)
         .layer(axum::middleware::from_fn_with_state(metrics.clone(), prometheus_middleware))

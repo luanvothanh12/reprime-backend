@@ -1,0 +1,357 @@
+{
+  "schema_version": "1.1",
+  "type_definitions": [
+    {
+      "type": "user",
+      "relations": {},
+      "metadata": {
+        "relations": {},
+        "module": "",
+        "source_info": {
+          "file": "",
+          "line": 0,
+          "column": 0
+        }
+      }
+    },
+    {
+      "type": "organization",
+      "relations": {
+        "admin": {
+          "this": {}
+        },
+        "member": {
+          "this": {}
+        },
+        "owner": {
+          "this": {}
+        }
+      },
+      "metadata": {
+        "relations": {
+          "admin": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ],
+            "module": "",
+            "source_info": {
+              "file": "",
+              "line": 0,
+              "column": 0
+            }
+          },
+          "member": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ],
+            "module": "",
+            "source_info": {
+              "file": "",
+              "line": 0,
+              "column": 0
+            }
+          },
+          "owner": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ],
+            "module": "",
+            "source_info": {
+              "file": "",
+              "line": 0,
+              "column": 0
+            }
+          }
+        },
+        "module": "",
+        "source_info": {
+          "file": "",
+          "line": 0,
+          "column": 0
+        }
+      }
+    },
+    {
+      "type": "project",
+      "relations": {
+        "admin": {
+          "union": {
+            "child": [
+              {
+                "this": {}
+              },
+              {
+                "tupleToUserset": {
+                  "tupleset": {
+                    "object": "",
+                    "relation": "organization"
+                  },
+                  "computedUserset": {
+                    "object": "",
+                    "relation": "admin"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "editor": {
+          "union": {
+            "child": [
+              {
+                "this": {}
+              },
+              {
+                "computedUserset": {
+                  "object": "",
+                  "relation": "admin"
+                }
+              }
+            ]
+          }
+        },
+        "organization": {
+          "this": {}
+        },
+        "owner": {
+          "this": {}
+        },
+        "viewer": {
+          "union": {
+            "child": [
+              {
+                "this": {}
+              },
+              {
+                "computedUserset": {
+                  "object": "",
+                  "relation": "editor"
+                }
+              },
+              {
+                "tupleToUserset": {
+                  "tupleset": {
+                    "object": "",
+                    "relation": "organization"
+                  },
+                  "computedUserset": {
+                    "object": "",
+                    "relation": "member"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "relations": {
+          "admin": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ],
+            "module": "",
+            "source_info": {
+              "file": "",
+              "line": 0,
+              "column": 0
+            }
+          },
+          "editor": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ],
+            "module": "",
+            "source_info": {
+              "file": "",
+              "line": 0,
+              "column": 0
+            }
+          },
+          "organization": {
+            "directly_related_user_types": [
+              {
+                "type": "organization"
+              }
+            ],
+            "module": "",
+            "source_info": {
+              "file": "",
+              "line": 0,
+              "column": 0
+            }
+          },
+          "owner": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ],
+            "module": "",
+            "source_info": {
+              "file": "",
+              "line": 0,
+              "column": 0
+            }
+          },
+          "viewer": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ],
+            "module": "",
+            "source_info": {
+              "file": "",
+              "line": 0,
+              "column": 0
+            }
+          }
+        },
+        "module": "",
+        "source_info": {
+          "file": "",
+          "line": 0,
+          "column": 0
+        }
+      }
+    },
+    {
+      "type": "document",
+      "relations": {
+        "editor": {
+          "union": {
+            "child": [
+              {
+                "this": {}
+              },
+              {
+                "computedUserset": {
+                  "object": "",
+                  "relation": "owner"
+                }
+              },
+              {
+                "tupleToUserset": {
+                  "tupleset": {
+                    "object": "",
+                    "relation": "project"
+                  },
+                  "computedUserset": {
+                    "object": "",
+                    "relation": "admin"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "owner": {
+          "this": {}
+        },
+        "project": {
+          "this": {}
+        },
+        "viewer": {
+          "union": {
+            "child": [
+              {
+                "this": {}
+              },
+              {
+                "computedUserset": {
+                  "object": "",
+                  "relation": "editor"
+                }
+              },
+              {
+                "tupleToUserset": {
+                  "tupleset": {
+                    "object": "",
+                    "relation": "project"
+                  },
+                  "computedUserset": {
+                    "object": "",
+                    "relation": "viewer"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "relations": {
+          "editor": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ],
+            "module": "",
+            "source_info": {
+              "file": "",
+              "line": 0,
+              "column": 0
+            }
+          },
+          "owner": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ],
+            "module": "",
+            "source_info": {
+              "file": "",
+              "line": 0,
+              "column": 0
+            }
+          },
+          "project": {
+            "directly_related_user_types": [
+              {
+                "type": "project"
+              }
+            ],
+            "module": "",
+            "source_info": {
+              "file": "",
+              "line": 0,
+              "column": 0
+            }
+          },
+          "viewer": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ],
+            "module": "",
+            "source_info": {
+              "file": "",
+              "line": 0,
+              "column": 0
+            }
+          }
+        },
+        "module": "",
+        "source_info": {
+          "file": "",
+          "line": 0,
+          "column": 0
+        }
+      }
+    }
+  ]
+}

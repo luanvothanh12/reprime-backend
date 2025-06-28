@@ -2,23 +2,33 @@ version: '3.8'
 
 services:
   app:
+    container_name: reprime-app
     build: .
     ports:
       - "3000:8080"
     environment:
       - RUN_MODE=production
-      - APP_DATABASE_URL=postgresql://postgres:password@db:5432/reprime_backend
+      - APP_DATABASE_URL=postgresql://vtlua:password@db:5432/reprime_backend
       - APP_SERVER_HOST=0.0.0.0
       - APP_SERVER_PORT=8080
       - APP_LOGGING_LEVEL=info
       - APP_LOGGING_FORMAT=json
+      # OpenFGA Configuration
+      - APP_AUTH_OPENFGA_ENDPOINT=http://openfga:8080
+      - APP_AUTH_OPENFGA_STORE_ID=${OPENFGA_STORE_ID:-01ARZ3NDEKTSV4RRFFQ69G5FAV}
+      - APP_AUTH_JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
     depends_on:
       db:
         condition: service_healthy
+      openfga:
+        condition: service_healthy
     restart: unless-stopped
+    networks:
+      - app-network
 
   db:
     image: postgres:15
+    container_name: reprime-postgres
     environment:
       - POSTGRES_DB=reprime_backend
       - POSTGRES_USER=postgres
@@ -33,6 +43,114 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks:
+      - app-network
+
+  # OpenFGA Database (separate from main app database)
+  openfga-db:
+    image: postgres:15
+    container_name: openfga-postgres
+    environment:
+      POSTGRES_USER: openfga
+      POSTGRES_PASSWORD: ${OPENFGA_DB_PASSWORD:-openfga_password}
+      POSTGRES_DB: openfga
+    ports:
+      - "5433:5432"
+    volumes:
+      - openfga_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openfga"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - openfga-network
+
+  # OpenFGA Migration
+  openfga-migrate:
+    image: openfga/openfga:latest
+    container_name: openfga-migrate
+    command: ["migrate"]
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://openfga:${OPENFGA_DB_PASSWORD:-openfga_password}@openfga-db:5432/openfga?sslmode=disable
+      OPENFGA_LOG_LEVEL: debug
+    depends_on:
+      openfga-db:
+        condition: service_healthy
+    networks:
+      - openfga-network
+    restart: "no"
+
+  # OpenFGA Server with Production Best Practices
+  openfga:
+    image: openfga/openfga:latest
+    container_name: openfga-server
+    environment:
+      # Database Configuration
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://openfga:${OPENFGA_DB_PASSWORD:-openfga_password}@openfga-db:5432/openfga?sslmode=disable
+
+      # Connection Pool Settings (Best Practices)
+      OPENFGA_DATASTORE_MAX_OPEN_CONNS: 30
+      OPENFGA_DATASTORE_MAX_IDLE_CONNS: 30
+      OPENFGA_DATASTORE_CONN_MAX_IDLE_TIME: 3600s
+      OPENFGA_DATASTORE_CONN_MAX_LIFETIME: 3600s
+
+      # Server Configuration
+      OPENFGA_GRPC_ADDR: 0.0.0.0:8081
+      OPENFGA_HTTP_ADDR: 0.0.0.0:8080
+      OPENFGA_LOG_LEVEL: info
+
+      # Performance Optimizations
+      OPENFGA_CHECK_QUERY_CACHE_ENABLED: true
+      OPENFGA_CHECK_QUERY_CACHE_LIMIT: 50000
+      OPENFGA_CHECK_QUERY_CACHE_TTL: 10s
+
+      # Concurrency Limits
+      OPENFGA_LIST_OBJECTS_MAX_RESULTS: 1000
+      OPENFGA_LIST_USERS_MAX_RESULTS: 1000
+      OPENFGA_MAX_CONCURRENT_READS_FOR_CHECK: 4294967295
+      OPENFGA_MAX_CONCURRENT_READS_FOR_LIST_OBJECTS: 4294967295
+      OPENFGA_MAX_CONCURRENT_READS_FOR_LIST_USERS: 4294967295
+
+      # Metrics and Observability
+      OPENFGA_METRICS_ENABLED: true
+      OPENFGA_DATASTORE_METRICS_ENABLED: true
+      OPENFGA_TRACE_ENABLED: false
+      OPENFGA_TRACE_SAMPLE_RATIO: 0.0
+
+      # Security
+      OPENFGA_PLAYGROUND_ENABLED: true
+      OPENFGA_PLAYGROUND_PORT: 3000
+
+    ports:
+      - "8080:8080"   # HTTP API
+      - "8081:8081"   # gRPC API
+      - "3001:3000"   # Playground UI (only if enabled)
+    depends_on:
+      openfga-db:
+        condition: service_healthy
+      openfga-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:8081"]
+      interval: 5s
+      timeout: 30s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - app-network
+      - openfga-network
+    command: run
 
 volumes:
   postgres_data:
+  openfga_postgres_data:
+
+networks:
+  app-network:
+    driver: bridge
+  openfga-network:
+    driver: bridge

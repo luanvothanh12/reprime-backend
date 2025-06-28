@@ -4,6 +4,9 @@ use sqlx::FromRow;
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
+// Re-export auth models
+pub use crate::auth::models::*;
+
 // Example User model
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct User {

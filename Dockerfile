@@ -1,18 +1,33 @@
 # Build stage
-FROM rust:1.75 as builder
+FROM rust:1.88-slim as builder
+
+# Install build dependencies including curl for utoipa-swagger-ui
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy manifests
-COPY Cargo.toml Cargo.lock ./
+# First, copy only the manifest files for dependency caching
+COPY Cargo.toml ./
 
-# Copy source code
+# Create dummy src/main.rs to cache dependencies
+RUN mkdir src && echo "fn main() {}" > src/main.rs
+
+# Build dependencies - this layer will be cached unless Cargo.toml changes
+RUN cargo build --release
+RUN rm -rf src
+
+# Now copy the actual source code
 COPY src ./src
 COPY migrations ./migrations
 COPY config ./config
 
-# Build the application
-RUN cargo build --release
+# Build the actual application
+RUN touch src/main.rs && cargo build --release
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -21,6 +36,7 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -28,6 +44,7 @@ WORKDIR /app
 # Copy the binary from builder stage
 COPY --from=builder /app/target/release/reprime-backend .
 COPY --from=builder /app/config ./config
+COPY --from=builder /app/migrations ./migrations
 
 # Create a non-root user
 RUN useradd -r -s /bin/false appuser && chown -R appuser:appuser /app
