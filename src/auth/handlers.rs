@@ -1,17 +1,16 @@
 use crate::auth::jwt::JwtService;
 use crate::auth::models::{
-    AuthContext, LoginRequest, LoginResponse, RegisterRequest, UserInfo, roles,
+    AuthContext, LoginRequest, LoginResponse, RegisterRequest, UserInfo,
 };
 use crate::auth::openfga::OpenFgaService;
 use crate::errors::Result;
-use crate::models::{ApiResponse, CreateUserRequest};
+use crate::models::ApiResponse;
 use crate::services::Services;
 use axum::{
     extract::{Extension, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::Json,
 };
-use bcrypt::{hash, DEFAULT_COST};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -51,51 +50,10 @@ pub async fn register(
     State(handlers): State<AuthHandlers>,
     Json(request): Json<RegisterRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<LoginResponse>>)> {
-    // Hash the password
-    let _password_hash = hash(&request.password, DEFAULT_COST)
-        .map_err(|e| crate::errors::AppError::Internal(format!("Failed to hash password: {}", e)))?;
+    // Use the auth service to handle the complete registration process
+    let response = handlers.services.auth.register(request).await?;
 
-    // Create user
-    let create_user_request = CreateUserRequest {
-        email: request.email.clone(),
-        username: request.username.clone(),
-    };
-
-    let user = handlers.services.user.create_user(create_user_request).await?;
-
-    // Store password hash (this would need a new repository method)
-    // For now, we'll skip this step as it requires database schema changes
-
-    // Assign default role
-    let default_roles = vec![roles::USER.to_string()];
-
-    // Create relationship in OpenFGA
-    handlers
-        .openfga_service
-        .write_relationship(user.id, "member", "organization", "default")
-        .await?;
-
-    // Generate JWT token
-    let token = handlers.jwt_service.generate_token(
-        user.id,
-        user.email.clone(),
-        user.username.clone(),
-        default_roles.clone(),
-    )?;
-
-    let response = LoginResponse {
-        access_token: token,
-        token_type: "Bearer".to_string(),
-        expires_in: 24 * 3600, // 24 hours in seconds
-        user: UserInfo {
-            id: user.id,
-            email: user.email,
-            username: user.username,
-            roles: default_roles,
-        },
-    };
-
-    tracing::info!("User registered successfully: {}", user.id);
+    tracing::info!("User registered successfully: {}", response.user.id);
 
     Ok((
         StatusCode::CREATED,
@@ -121,38 +79,10 @@ pub async fn login(
     State(handlers): State<AuthHandlers>,
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<ApiResponse<LoginResponse>>> {
-    // Get user by email
-    let user = handlers.services.user.get_user_by_email(&request.email).await?;
+    // Use the auth service to handle the complete login process
+    let response = handlers.services.auth.login(request).await?;
 
-    // For now, we'll skip password verification since we don't have the credentials table yet
-    // In a real implementation, you would:
-    // 1. Get password hash from credentials table
-    // 2. Verify password using bcrypt::verify
-
-    // Get user roles (for now, assign default role)
-    let user_roles = vec![roles::USER.to_string()];
-
-    // Generate JWT token
-    let token = handlers.jwt_service.generate_token(
-        user.id,
-        user.email.clone(),
-        user.username.clone(),
-        user_roles.clone(),
-    )?;
-
-    let response = LoginResponse {
-        access_token: token,
-        token_type: "Bearer".to_string(),
-        expires_in: 24 * 3600, // 24 hours in seconds
-        user: UserInfo {
-            id: user.id,
-            email: user.email,
-            username: user.username,
-            roles: user_roles,
-        },
-    };
-
-    tracing::info!("User logged in successfully: {}", user.id);
+    tracing::info!("User logged in successfully: {}", response.user.id);
 
     Ok(Json(ApiResponse::success(response)))
 }
@@ -259,4 +189,40 @@ pub async fn check_permission(
         .await?;
 
     Ok(Json(ApiResponse::success(result.allowed)))
+}
+
+/// Logout user and invalidate token
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/logout",
+    tag = "authentication",
+    security(
+        ("bearer_auth" = [])
+    ),
+    responses(
+        (status = 200, description = "User logged out successfully", body = ApiResponse<String>),
+        (status = 401, description = "Unauthorized")
+    )
+)]
+pub async fn logout(
+    State(handlers): State<AuthHandlers>,
+    headers: HeaderMap,
+    Extension(auth_context): Extension<AuthContext>,
+) -> Result<Json<ApiResponse<String>>> {
+    let auth_header = headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .ok_or_else(|| crate::errors::AppError::Unauthorized)?;
+
+    let token = JwtService::extract_token_from_header(auth_header)
+        .map_err(|_| crate::errors::AppError::Unauthorized)?;
+
+    handlers.services.auth.logout(token).await?;
+
+    tracing::info!("User logged out successfully: {}", auth_context.user_id);
+
+    Ok(Json(ApiResponse::success_with_message(
+        "Logged out successfully".to_string(),
+        "User session has been terminated".to_string(),
+    )))
 }

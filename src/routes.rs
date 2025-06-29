@@ -24,6 +24,7 @@ pub fn create_routes(
     let protected_auth_routes = Router::new()
         .route("/api/v1/auth/me", get(auth_handlers::me))
         .route("/api/v1/auth/refresh", post(auth_handlers::refresh_token))
+        .route("/api/v1/auth/logout", post(auth_handlers::logout))
         .route("/api/v1/auth/check-permission", post(auth_handlers::check_permission))
         .layer(middleware::from_fn_with_state(
             jwt_service.clone(),

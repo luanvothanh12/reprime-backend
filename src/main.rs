@@ -32,6 +32,7 @@ use utoipa_swagger_ui::SwaggerUi;
         reprime_backend::handlers::user::delete_user,
         reprime_backend::auth::handlers::register,
         reprime_backend::auth::handlers::login,
+        reprime_backend::auth::handlers::logout,
         reprime_backend::auth::handlers::me,
         reprime_backend::auth::handlers::refresh_token,
         reprime_backend::auth::handlers::check_permission,
